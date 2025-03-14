@@ -1,9 +1,10 @@
 local mod_id = "log_game_state"
 
--- Get Libs
+-- Get Libraries
 local socket = require("mods.loggamestate.libs.luasocket.src.socket")
 local http = require("mods.loggamestate.libs.luasocket.src.http")
 local json = require("mods.loggamestate.libs.dkjson")
+local ltn12 = require("mods.loggamestate.libs.luasocket.src.ltn12")
 
 -- Logger
 local logging = require("logging")
@@ -12,62 +13,63 @@ local logger = logging.getLogger(mod_id)
 -- Console
 local console = require("console")
 
--- Function to get actual game state
+-- Function to extract game state (reduced version)
 local function getGameState()
-    if not G then return {} end -- If G doesn't exist, return an empty table
+    if not G or not G.GAME then 
+        logger:error("G or G.GAME is nil! Returning empty game state.")
+        return {} 
+    end
 
-    return {
-        money = G.GAME and G.GAME.money or 0,  -- Player's money
-        hands = G.GAME and G.GAME.hands or 0,  -- Remaining hands
-        discards = G.GAME and G.GAME.discards or 0, -- Remaining discards
-        blind_level = G.GAME and G.GAME.blind_level or 0, -- Blind level
-        current_jokers = G.jokers or {}, -- List of active jokers
-        deck = G.deck and {size = #G.deck.cards} or {}, -- Deck info
-        active_cards = G.play and {size = #G.play.cards} or {}, -- Current play area
+    -- Extract only essential game data to simplify debugging
+    local gameState = {
+        money = G.GAME.money or 0,
+        blind_level = G.GAME.blind_level or 0,
+        hands = G.GAME.hands or {},
+        deck = G.deck and { size = #G.deck.cards } or {}
     }
+
+    return gameState
 end
 
--- Function to send game state to Express server using LuaSocket
+-- Function to send game state to Express server
 local function sendGameStateToServer()
     local gameState = getGameState()
 
-    -- Encode to JSON safely
-    local jsonData, err = json.encode(gameState, { exception = function() return "<cycle>" end })
-    
+    -- Encode game state as JSON
+    local jsonData, err = json.encode(gameState, { indent = true, exception = function() return "<cycle>" end })
     if not jsonData then
         logger:error("Failed to encode game state: " .. tostring(err))
         return false
     end
 
-    -- Set up the request
-    local url = "http://localhost:3000/game-state"
-    local response_body = {}
+    -- Log formatted JSON data before sending
+    logger:info("Formatted JSON Data:\n" .. jsonData)
 
-    local request_body = jsonData
+    local url = "http://localhost:3000/game-state"
     local headers = {
         ["Content-Type"] = "application/json",
-        ["Content-Length"] = tostring(#request_body),
+        ["Accept"] = "application/json",
+        ["Content-Length"] = tostring(#jsonData)
     }
 
-    logger:info("Sending game state to: " .. url)
+    -- HTTP Response Storage
+    local response_body = {}
 
-    -- Perform HTTP POST request
-    local result, code, response_headers, status = http.request {
+    -- Send HTTP Request
+    local response, status, response_headers = http.request {
         url = url,
         method = "POST",
         headers = headers,
-        source = ltn12.source.string(request_body),
-        sink = ltn12.sink.table(response_body),
+        source = ltn12.source.string(jsonData),
+        sink = ltn12.sink.table(response_body)
     }
 
-    -- Log response details
-    if result then
-        logger:info("Server response: " .. table.concat(response_body))
-    else
-        logger:error("HTTP request failed: " .. tostring(code))
-    end
+    -- Log HTTP Response
+    local responseText = table.concat(response_body)
+    logger:info("HTTP Status: " .. tostring(status))
+    logger:info("Server Response: " .. responseText)
 
-    return result
+    return true
 end
 
 -- Register command for logging game state
@@ -92,4 +94,3 @@ return {
     on_enable = on_enable,
     on_disable = on_disable
 }
-

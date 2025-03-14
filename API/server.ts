@@ -1,20 +1,21 @@
 import express from "express";
-import cors from "cors";
 
 const app = express();
-app.use(cors());
-app.use(express.json()); // ⬅️ Important! This allows Express to parse JSON bodies
+const PORT = 3000;
+
+app.use(express.json());
 
 app.post("/game-state", (req, res) => {
-  console.log("Received game state:", req.body);
-
-  res.json({
-    message: "Game state received!",
-    gameState: req.body,
-  });
+  console.log("Raw Request Body:", JSON.stringify(req.body, null, 2));
+  try {
+    if (!req.body) {
+      throw new Error("Empty request body received.");
+    }
+    res.status(200).json({ message: "Game state received successfully!" });
+  } catch (err: any) {
+    console.error("Failed to parse JSON:", err.message);
+    res.status(400).json({ error: "Invalid JSON received" });
+  }
 });
 
-const PORT = 3000;
-app.listen(PORT, () =>
-  console.log(`Server running on http://localhost:${PORT}`)
-);
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
