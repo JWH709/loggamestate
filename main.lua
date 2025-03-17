@@ -20,15 +20,74 @@ local function getGameState()
         return {} 
     end
 
-    -- Extract only essential game data to simplify debugging
-    local gameState = {
-        money = G.GAME.money or 0,
-        blind_level = G.GAME.blind_level or 0,
-        hands = G.GAME.hands or {},
-        deck = G.deck and { size = #G.deck.cards } or {}
-    }
+local gameState = {
+    chips = G.GAME.chips or 0,
+    stake = G.GAME.stake or 0,
+    unused_discards = G.GAME.unused_discards or 0,
+    win_ante = G.GAME.win_ante or 0,
+    round = G.GAME.round or 0,
+    hands_played = G.GAME.hands_played or 0,
 
-    return gameState
+    -- Current round state
+    current_round = {
+        hands_left = G.GAME.current_round and G.GAME.current_round.hands_left or 0,
+        discards_left = G.GAME.current_round and G.GAME.current_round.discards_left or 0,
+        reroll_cost = G.GAME.current_round and G.GAME.current_round.reroll_cost or 0
+    },
+
+    -- Hands available
+    hands = G.GAME.hands or {},
+
+    -- Active modifiers
+    modifiers = G.GAME.modifiers or {},
+
+    -- Jokers in play
+    jokers = {},
+
+    -- Blind (round effect)
+    blind = {
+        name = G.GAME.round_resets and G.GAME.round_resets.blind and G.GAME.round_resets.blind.name or "Unknown",
+        debuffs = G.GAME.round_resets and G.GAME.round_resets.blind and G.GAME.round_resets.blind.debuff or {},
+        multiplier = G.GAME.round_resets and G.GAME.round_resets.blind and G.GAME.round_resets.blind.mult or 1
+    },
+
+    -- Deck info
+    deck_size = G.deck and #G.deck.cards or 0,
+
+    -- Current hand details
+    hand = {
+        cards = {},
+        count = 0
+    }
+}
+
+-- Extract Joker Data
+if G.jokers and G.jokers.cards then
+    for _, joker in ipairs(G.jokers.cards) do
+        table.insert(gameState.jokers, {
+            name = joker.label or "Unknown",
+            effect = joker.ability and joker.ability.effect or "None",
+            multiplier = joker.ability and joker.ability.mult or 1,
+            times_used = joker.base and joker.base.times_played or 0
+        })
+    end
+end
+
+-- Extract Hand Data
+if G.hand and G.hand.cards then
+    for _, card in ipairs(G.hand.cards) do
+        table.insert(gameState.hand.cards, {
+            rank = card.base and card.base.value or "Unknown",
+            suit = card.base and card.base.suit or "Unknown",
+            id = card.base and card.base.id or -1,
+            times_played = card.base and card.base.times_played or 0
+        })
+    end
+    gameState.hand.count = #gameState.hand.cards
+end
+
+return gameState
+
 end
 
 -- Function to send game state to Express server
@@ -36,10 +95,11 @@ local function sendGameStateToServer()
     local gameState = getGameState()
 
     -- Encode game state as JSON
-    local jsonData, err = json.encode(gameState, { indent = true, exception = function() return "<cycle>" end })
+    local jsonData, err = json.encode(gameState or {}, { exception = function() return "<cycle>" end })
+
     if not jsonData then
         logger:error("Failed to encode game state: " .. tostring(err))
-        return false
+        jsonData = "{}" -- Failsafe: Send an empty object instead of `null`
     end
 
     -- Log formatted JSON data before sending
