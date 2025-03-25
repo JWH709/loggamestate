@@ -21,7 +21,6 @@ local function getGameState()
     end
 
 local gameState = {
-    chips = G.GAME.chips or 0,
     stake = G.GAME.stake or 0,
     unused_discards = G.GAME.unused_discards or 0,
     win_ante = G.GAME.win_ante or 0,
@@ -29,14 +28,7 @@ local gameState = {
     hands_played = G.GAME.hands_played or 0,
 
     -- Current round state
-    current_round = {
-        hands_left = G.GAME.current_round and G.GAME.current_round.hands_left or 0,
-        discards_left = G.GAME.current_round and G.GAME.current_round.discards_left or 0,
-        reroll_cost = G.GAME.current_round and G.GAME.current_round.reroll_cost or 0
-    },
-
-    -- Hands available
-    hands = G.GAME.hands or {},
+    current_round = G.GAME.current_round or {},
 
     -- Active modifiers
     modifiers = G.GAME.modifiers or {},
@@ -48,7 +40,7 @@ local gameState = {
     blind = {
         name = G.GAME.round_resets and G.GAME.round_resets.blind and G.GAME.round_resets.blind.name or "Unknown",
         debuffs = G.GAME.round_resets and G.GAME.round_resets.blind and G.GAME.round_resets.blind.debuff or {},
-        multiplier = G.GAME.round_resets and G.GAME.round_resets.blind and G.GAME.round_resets.blind.mult or 1
+        chips_needed = (G.GAME.round_resets and G.GAME.round_resets.blind and G.GAME.round_resets.blind.mult or 1) * 300,
     },
 
     -- Deck info
